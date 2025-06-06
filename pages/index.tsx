@@ -36,16 +36,44 @@ export default function Home() {
   const askAURA = async () => {
     setLoading(true)
     setResponse('')
-    const res = await fetch('/api/ask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input }),
-    })
-    const data = await res.json()
-    const reply = data.response || data.error || '⚠️ No response received.'
-    setResponse(reply)
-    speak(reply)
-    setLoading(false)
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Server fallback triggered')
+      }
+
+      const data = await res.json()
+      const reply = data.response || data.error || '⚠️ No response received.'
+      setResponse(reply)
+      speak(reply)
+    } catch (err) {
+      // Fallback to ChatGPT public API
+      const fallback = await fetch('https://api.chatanywhere.tech/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer sk-chatgpt-public-key'
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant named AURA.' },
+            { role: 'user', content: input }
+          ]
+        })
+      })
+      const fallbackData = await fallback.json()
+      const reply = fallbackData.choices?.[0]?.message?.content || '⚠️ Fallback response unavailable.'
+      setResponse(reply)
+      speak(reply)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const speak = (text: string) => {
